@@ -2,21 +2,25 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-    const body = await req.json();
-    const subject = body.subject || 'history';
+    const now = new Date();
+    const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+    const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science'];
+    const subjectIndex = Math.floor((Math.sin(seed) * 10000) % subjects.length);
+    const subject = subjects[subjectIndex];
 
     const categoryMap = {
-      history: 23,        // History
-      geography: 22,      // Geography
-      anthropology: 25,   // Science & Nature (closest proxy)
-      sociology: 24,      // Politics (closest)
-      economics: 24,      // Politics (closest)
-      'political science': 24  // Politics
+      history: 23,
+      geography: 22,
+      anthropology: 17, // Science & Nature (best proxy)
+      sociology: 24,    // Politics (best proxy)
+      economics: 24,    // Politics (best proxy)
+      'political science': 24
     };
 
     const category = categoryMap[subject] || 23;
 
     const resp = await fetch(`https://opentdb.com/api.php?amount=10&category=${category}&difficulty=hard&type=multiple`);
+
     if (!resp.ok) throw new Error('Trivia API failed');
     const j = await resp.json();
 
@@ -33,6 +37,7 @@ export default async function handler(req, res) {
     });
 
     return res.json({ questions });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Internal server error' });

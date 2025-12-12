@@ -91,7 +91,7 @@ export default function App(): JSX.Element {
 
     setLoadingQuiz(true);
     try {
-      const res = await fetch('/api/generateQuiz', { method: 'POST', body: JSON.stringify({ subject: currentSubject }) });
+      const res = await fetch('/api/generateQuiz', { method: 'POST' });
       if (!res.ok) throw new Error(await res.text());
       const q: Quiz = await res.json();
       setQuiz(q);
@@ -128,41 +128,38 @@ export default function App(): JSX.Element {
   const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
     setLoadingFunc(true);
     let attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 10; // Increased attempts since filtering is strict
     const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
 
     while (attempts < maxAttempts) {
       try {
-        const titleRes = await fetch('https://en.wikipedia.org/api/rest_v1/page/random/title');
-        if (!titleRes.ok) throw new Error('Title fetch failed');
-        const titleJson = await titleRes.json();
-        const title = titleJson.items[0].title;
+        const titleRes = await fetch('https://en.wikipedia.org/api/rest_v1/page/random/summary');
+        if (!titleRes.ok) throw new Error('Summary fetch failed');
+        const summaryJson = await titleRes.json();
+
+        const title = summaryJson.title;
 
         if (factHistory.has(title)) {
           attempts++;
           continue;
         }
 
-        const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-        if (!summaryRes.ok) throw new Error('Summary fetch failed');
-        const summaryJson = await summaryRes.json();
-
-        // Filter by category keywords to ensure relevance to chosen subject
-        const categories = (summaryJson.categories || []).map((c: any) => c.title?.toLowerCase() || '');
+        // Keyword matching for subject relevance
         const lowerTitle = title.toLowerCase();
         const lowerExtract = (summaryJson.extract || '').toLowerCase();
+        const lowerDescription = (summaryJson.description || '').toLowerCase();
 
-        const subjectKeywords = {
-          history: ['history', 'century', 'war', 'empire', 'dynasty', 'revolution'],
-          geography: ['geography', 'river', 'mountain', 'island', 'continent', 'country', 'city', 'region'],
-          anthropology: ['anthropology', 'culture', 'tribe', 'ethnography', 'ritual', 'kinship'],
-          sociology: ['sociology', 'society', 'social', 'class', 'inequality', 'urban'],
-          economics: ['economics', 'economy', 'trade', 'market', 'currency', 'gdp', 'inflation'],
-          'political science': ['politics', 'government', 'election', 'constitution', 'democracy', 'policy']
+        const subjectKeywords: Record<string, string[]> = {
+          history: ['history', 'century', 'war', 'empire', 'dynasty', 'revolution', 'bc', 'ad', 'ancient', 'medieval'],
+          geography: ['geography', 'river', 'mountain', 'island', 'continent', 'country', 'city', 'region', 'lake', 'ocean'],
+          anthropology: ['anthropology', 'culture', 'tribe', 'ethnography', 'ritual', 'kinship', 'human evolution'],
+          sociology: ['sociology', 'society', 'social', 'class', 'inequality', 'urban', 'community', 'norms'],
+          economics: ['economics', 'economy', 'trade', 'market', 'currency', 'gdp', 'inflation', 'finance'],
+          'political science': ['politics', 'government', 'election', 'constitution', 'democracy', 'policy', 'state', 'ideology']
         };
 
-        const keywords = subjectKeywords[subject as keyof typeof subjectKeywords] || [];
-        const matchesSubject = keywords.some(kw => lowerTitle.includes(kw) || lowerExtract.includes(kw) || categories.some((cat: string) => cat.includes(kw)));
+        const keywords = subjectKeywords[subject] || [];
+        const matchesSubject = keywords.some(kw => lowerTitle.includes(kw) || lowerExtract.includes(kw) || lowerDescription.includes(kw));
 
         if (!matchesSubject) {
           attempts++;
@@ -190,6 +187,7 @@ export default function App(): JSX.Element {
       }
     }
 
+    // Fallback only after exhausting attempts
     const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
     setFactFunc(fallback);
     setLoadingFunc(false);
@@ -209,7 +207,7 @@ export default function App(): JSX.Element {
 
       <main className="content">
         <section className="fact-card">
-          <h2>Today's Fact ({currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)})</h2>
+          <h2>Today's Fact</h2>
           {loadingFact && <p>Loading fact...</p>}
           {mainFact && (
             <div>
@@ -225,7 +223,7 @@ export default function App(): JSX.Element {
           {bonusFact && (
             <div className="bonus-fact-card">
               <div className="bonus-ribbon">BONUS UNLOCKED</div>
-              <h3>Bonus Fact ({currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)})</h3>
+              <h3>Bonus Fact</h3>
               {loadingBonus && <p>Loading bonus fact...</p>}
               <p className="fact-text bonus">{bonusFact.fact}</p>
               {bonusFact.source_url && (
@@ -236,7 +234,7 @@ export default function App(): JSX.Element {
         </section>
 
         <section className="quiz-area">
-          <h2>Daily Quiz ({currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)})</h2>
+          <h2>Daily Quiz</h2>
           {loadingQuiz && <p>Generating quiz...</p>}
           {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && <p>Click "Daily Quiz" to start today's challenge.</p>}
           {quiz && (
