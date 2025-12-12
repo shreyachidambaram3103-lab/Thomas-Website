@@ -128,7 +128,7 @@ export default function App(): JSX.Element {
   const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
     setLoadingFunc(true);
     let attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 10; // Increased for better success rate
     const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
 
     while (attempts < maxAttempts) {
