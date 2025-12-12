@@ -123,41 +123,76 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
+  // Recursive function to get all subcategories
+  const getSubcategories = async (category: string, depth = 0, maxDepth = 3): Promise<string[]> => {
+    if (depth > maxDepth) return [];
+    let subcats: string[] = [];
+    let continueToken = '';
+    do {
+      let url = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=subcat&cmprop=title&cmtitle=${encodeURIComponent(category)}&cmlimit=50&format=json`;
+      if (continueToken) url += `&cmcontinue=${continueToken}`;
+      const res = await fetch(url);
+      if (!res.ok) break;
+      const json = await res.json();
+      const cats = json.query?.categorymembers || [];
+      subcats = subcats.concat(cats.map((c: any) => c.title));
+      continueToken = json.continue?.cmcontinue || '';
+    } while (continueToken);
+    // Recurse into subcats
+    for (const subcat of subcats) {
+      subcats = subcats.concat(await getSubcategories(subcat, depth + 1, maxDepth));
+    }
+    return subcats;
+  };
+
+  // Get all articles from category and subcategories
+  const getAllArticles = async (category: string): Promise<any[]> => {
+    let allArticles: any[] = [];
+    let continueToken = '';
+    do {
+      let url = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=page&cmprop=title&cmnamespace=0&cmtitle=${encodeURIComponent(category)}&cmlimit=50&format=json`;
+      if (continueToken) url += `&cmcontinue=${continueToken}`;
+      const res = await fetch(url);
+      if (!res.ok) break;
+      const json = await res.json();
+      const articles = json.query?.categorymembers || [];
+      allArticles = allArticles.concat(articles);
+      continueToken = json.continue?.cmcontinue || '';
+    } while (continueToken);
+    return allArticles;
+  };
+
   const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
     setLoadingFunc(true);
-    let attempts = 0;
-    const maxAttempts = 10;
     const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
-    let allMembers: any[] = [];
+    let allArticles: any[] = [];
 
     try {
-      // Deep search: generator=categorymembers with cmcontinue for up to 500 articles (including subcats via depth)
-      let continueToken = '';
-      do {
-        let url = `https://en.wikipedia.org/w/api.php?action=query&generator=categorymembers&gcmtype=page&gcmnamespace=0&gcmtitle=Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}&gcmlimit=500&format=json`;
-        if (continueToken) url += `&gcmcontinue=${continueToken}`;
+      const categoryTitle = `Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}`;
+      const subcats = await getSubcategories(categoryTitle);
+      // Get articles from main category
+      let mainArticles = await getAllArticles(categoryTitle);
+      allArticles = allArticles.concat(mainArticles);
+      // Get articles from subcats (limit to top 10 subcats to avoid too many calls)
+      for (const subcat of subcats.slice(0, 10)) {
+        const subArticles = await getAllArticles(subcat);
+        allArticles = allArticles.concat(subArticles);
+        if (allArticles.length > 200) break; // Cap to prevent long loads
+      }
 
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Category fetch failed');
-        const json = await res.json();
+      if (allArticles.length === 0) throw new Error('No articles found');
 
-        const pages = json.query?.pages ? Object.values(json.query.pages) : [];
-        allMembers = allMembers.concat(pages);
-
-        continueToken = json.continue?.gcmcontinue || '';
-      } while (continueToken && allMembers.length < 500);
-
-      if (allMembers.length === 0) throw new Error('No articles found');
-
+      // Pick random unseen article
       let selected;
-      while (attempts < maxAttempts) {
-        const randomIndex = Math.floor(Math.random() * allMembers.length);
-        selected = allMembers[randomIndex];
+      let attempts = 0;
+      while (attempts < 20) { // High attempts since pool is large
+        const randomIndex = Math.floor(Math.random() * allArticles.length);
+        selected = allArticles[randomIndex];
         if (!factHistory.has(selected.title)) break;
         attempts++;
       }
 
-      if (factHistory.has(selected.title)) throw new Error('All articles seen');
+      if (!selected || factHistory.has(selected.title)) throw new Error('All articles seen');
 
       const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(selected.title)}`);
       if (!summaryRes.ok) throw new Error('Summary fetch failed');
