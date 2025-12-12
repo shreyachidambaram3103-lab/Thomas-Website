@@ -34,19 +34,15 @@ export default function App(): JSX.Element {
 
   const today = getTodayString();
 
-  // Load main fact on mount
   useEffect(() => {
     setLoadingFact(true);
     fetch('/api/generateFact', { method: 'POST' })
       .then(r => r.json())
       .then(data => setMainFact(data))
-      .catch(() => setMainFact({
-        fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.'
-      }))
+      .catch(() => setMainFact({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' }))
       .finally(() => setLoadingFact(false));
   }, []);
 
-  // Load saved quiz
   useEffect(() => {
     const savedQuizDate = localStorage.getItem('quizDate');
     if (savedQuizDate === today) {
@@ -59,7 +55,6 @@ export default function App(): JSX.Element {
     }
   }, [today]);
 
-  // Bonus fact after high score
   useEffect(() => {
     if (showResult && quiz) {
       const score = quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0);
@@ -152,12 +147,7 @@ export default function App(): JSX.Element {
             <div>
               <p className="fact-text">{mainFact.fact}</p>
               {mainFact.source_url ? (
-                <p className="source">
-                  Source:{' '}
-                  <a href={mainFact.source_url} target="_blank" rel="noopener noreferrer">
-                    {mainFact.source_title || mainFact.source_url}
-                  </a>
-                </p>
+                <p className="source">Source: <a href={mainFact.source_url} target="_blank" rel="noopener noreferrer">{mainFact.source_title || mainFact.source_url}</a></p>
               ) : (
                 <p className="source">No source available.</p>
               )}
@@ -171,12 +161,7 @@ export default function App(): JSX.Element {
               {loadingBonus && <p>Loading bonus fact...</p>}
               <p className="fact-text bonus">{bonusFact.fact}</p>
               {bonusFact.source_url && (
-                <p className="source bonus-source">
-                  Source:{' '}
-                  <a href={bonusFact.source_url} target="_blank" rel="noopener noreferrer">
-                    {bonusFact.source_title || bonusFact.source_url}
-                  </a>
-                </p>
+                <p className="source bonus-source">Source: <a href={bonusFact.source_url} target="_blank" rel="noopener noreferrer">{bonusFact.source_title || bonusFact.source_url}</a></p>
               )}
             </div>
           )}
@@ -185,21 +170,13 @@ export default function App(): JSX.Element {
         <section className="quiz-area">
           <h2>Daily Quiz</h2>
           {loadingQuiz && <p>Generating quiz...</p>}
-          {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && (
-            <p>Click "Daily Quiz" to start today's challenge.</p>
-          )}
+          {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && <p>Click "Daily Quiz" to start today's challenge.</p>}
           {quiz && (
             <>
               {showResult && (
                 <div className="quiz-result">
-                  <p>
-                    Your score: <strong>{score}/{quiz.questions.length}</strong>
-                  </p>
-                  {score > 8 ? (
-                    <p className="success">Excellent! You've unlocked a bonus fact.</p>
-                  ) : (
-                    <p>Good try! Score 9 or higher tomorrow to unlock a bonus fact.</p>
-                  )}
+                  <p>Your score: <strong>{score}/{quiz.questions.length}</strong></p>
+                  {score > 8 ? <p className="success">Excellent! You've unlocked a bonus fact.</p> : <p>Good try! Score 9 or higher tomorrow to unlock a bonus fact.</p>}
                 </div>
               )}
 
@@ -210,19 +187,17 @@ export default function App(): JSX.Element {
                     <ul className="choices">
                       {q.choices.map((c, j) => (
                         <li key={j}>
-                          <label
-                            className={
-                              showResult
-                                ? j === q.answer_index
-                                  ? 'correct'
-                                  : userAnswers[i] === j
-                                    ? 'incorrect'
-                                    : ''
+                          <label className={
+                            showResult
+                              ? j === q.answer_index
+                                ? 'correct'
                                 : userAnswers[i] === j
-                                  ? 'selected'
+                                  ? 'incorrect'
                                   : ''
-                            }
-                          >
+                              : userAnswers[i] === j
+                                ? 'selected'
+                                : ''
+                          }>
                             <input
                               type="radio"
                               name={`q${i}`}
