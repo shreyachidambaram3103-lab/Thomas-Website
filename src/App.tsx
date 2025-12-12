@@ -34,10 +34,8 @@ export default function App(): JSX.Element {
 
   const today = getTodayString();
 
-  // Subjects including Sports
   const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science', 'sports'];
 
-  // Deterministic daily subject using date as seed
   const getDailySubject = () => {
     const seed = new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate();
     const index = Math.abs(Math.sin(seed) * 100000) % subjects.length;
@@ -128,58 +126,64 @@ export default function App(): JSX.Element {
   const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
     setLoadingFunc(true);
     let attempts = 0;
-    const maxAttempts = 10; // Increased for better success rate
+    const maxAttempts = 10;
     const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
+    let allMembers: any[] = [];
 
-    while (attempts < maxAttempts) {
-      try {
-        const categoryTitle = `Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}`;
-        const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=page&cmnamespace=0&cmtitle=${encodeURIComponent(categoryTitle)}&cmlimit=50&format=json`;
+    try {
+      // Deep search: generator=categorymembers with cmcontinue for up to 500 articles (including subcats via depth)
+      let continueToken = '';
+      do {
+        let url = `https://en.wikipedia.org/w/api.php?action=query&generator=categorymembers&gcmtype=page&gcmnamespace=0&gcmtitle=Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}&gcmlimit=500&format=json`;
+        if (continueToken) url += `&gcmcontinue=${continueToken}`;
 
-        const membersRes = await fetch(apiUrl);
-        if (!membersRes.ok) throw new Error('Category members fetch failed');
-        const membersJson = await membersRes.json();
-        const members = membersJson.query?.categorymembers || [];
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Category fetch failed');
+        const json = await res.json();
 
-        if (members.length === 0) throw new Error('No articles in category');
+        const pages = json.query?.pages ? Object.values(json.query.pages) : [];
+        allMembers = allMembers.concat(pages);
 
-        const randomIndex = Math.floor(Math.random() * members.length);
-        const selectedPage = members[randomIndex];
-        const title = selectedPage.title;
+        continueToken = json.continue?.gcmcontinue || '';
+      } while (continueToken && allMembers.length < 500);
 
-        if (factHistory.has(title)) {
-          attempts++;
-          continue;
-        }
+      if (allMembers.length === 0) throw new Error('No articles found');
 
-        const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-        if (!summaryRes.ok) throw new Error('Summary fetch failed');
-        const summaryJson = await summaryRes.json();
-
-        let factText = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting article.'}`;
-        factText = factText.trim();
-        if (!factText.endsWith('.')) factText += '.';
-
-        const factObj = {
-          fact: factText,
-          source_url: summaryJson.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
-          source_title: title
-        };
-
-        factHistory.add(title);
-        localStorage.setItem('factHistory', JSON.stringify(Array.from(factHistory)));
-        setFactFunc(factObj);
-        setLoadingFunc(false);
-        return;
-      } catch (e) {
+      let selected;
+      while (attempts < maxAttempts) {
+        const randomIndex = Math.floor(Math.random() * allMembers.length);
+        selected = allMembers[randomIndex];
+        if (!factHistory.has(selected.title)) break;
         attempts++;
-        console.error('Wikipedia category fetch attempt failed:', e);
       }
-    }
 
-    const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
-    setFactFunc(fallback);
-    setLoadingFunc(false);
+      if (factHistory.has(selected.title)) throw new Error('All articles seen');
+
+      const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(selected.title)}`);
+      if (!summaryRes.ok) throw new Error('Summary fetch failed');
+      const summaryJson = await summaryRes.json();
+
+      let factText = summaryJson.extract || `${selected.title}: ${summaryJson.description || 'An interesting article.'}`;
+      factText = factText.trim();
+      if (!factText.endsWith('.')) factText += '.';
+
+      const factObj = {
+        fact: factText,
+        source_url: summaryJson.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(selected.title)}`,
+        source_title: selected.title
+      };
+
+      factHistory.add(selected.title);
+      localStorage.setItem('factHistory', JSON.stringify(Array.from(factHistory)));
+      setFactFunc(factObj);
+      setLoadingFunc(false);
+      return;
+    } catch (e) {
+      console.error('Fact generation failed:', e);
+      const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
+      setFactFunc(fallback);
+      setLoadingFunc(false);
+    }
   };
 
   return (
