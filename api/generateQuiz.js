@@ -9,7 +9,6 @@ export default async function handler(req, res) {
     const categories = [
       9,  // General Knowledge
       17, // Science & Nature
-      18, // Computers
       21, // Sports
       22, // Geography
       23, // History
