@@ -39,7 +39,7 @@ export default function App(): JSX.Element {
       setLoadingFact(true);
       try {
         const res = await fetch('/api/generateFact', { method: 'POST' });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error('Failed');
         const json = await res.json();
         setMainFact(json);
       } catch (e) {
@@ -81,7 +81,7 @@ export default function App(): JSX.Element {
     setLoadingBonus(true);
     try {
       const res = await fetch('/api/generateFact', { method: 'POST' });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error('Failed');
       const json = await res.json();
       setBonusFact(json);
       localStorage.setItem('bonusFact', JSON.stringify(json));

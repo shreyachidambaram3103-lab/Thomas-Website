@@ -8,47 +8,43 @@ export default async function handler(req, res) {
     const subjectIndex = Math.floor((Math.sin(seed) * 10000) % subjects.length);
     const subject = subjects[subjectIndex];
 
-    let attempts = 0;
-    const maxAttempts = 10;
-    const factHistory = []; // Server-side, no localStorage - assume single user, no history check here (frontend can handle if needed)
+    const categoryTitle = `Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}`;
 
-    while (attempts < maxAttempts) {
-      const categoryTitle = `Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}`;
-      const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=page&cmnamespace=0&cmtitle=${encodeURIComponent(categoryTitle)}&cmlimit=50&format=json`;
+    // Fetch all articles from category and subcategories (deep)
+    let allArticles = [];
+    let continueToken = '';
+    do {
+      let url = `https://en.wikipedia.org/w/api.php?action=query&generator=categorymembers&gcmtitle=${encodeURIComponent(categoryTitle)}&gcmtype=page&gcmnamespace=0&gcmlimit=500&prop=info&format=json`;
+      if (continueToken) url += `&gcmcontinue=${continueToken}`;
+      const response = await fetch(url);
+      if (!response.ok) break;
+      const data = await response.json();
+      const pages = data.query?.pages || {};
+      allArticles = allArticles.concat(Object.values(pages));
+      continueToken = data.continue?.gcmcontinue || '';
+    } while (continueToken);
 
-      const membersRes = await fetch(apiUrl);
-      if (!membersRes.ok) {
-        attempts++;
-        continue;
-      }
-      const membersJson = await membersRes.json();
-      const members = membersJson.query?.categorymembers || [];
+    if (allArticles.length === 0) throw new Error('No articles');
 
-      if (members.length > 0) {
-        const randomIndex = Math.floor(Math.random() * members.length);
-        const selected = members[randomIndex];
-        const title = selected.title;
+    const randomIndex = Math.floor(Math.random() * allArticles.length);
+    const selected = allArticles[randomIndex];
+    const title = selected.title;
 
-        const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-        if (!summaryRes.ok) {
-          attempts++;
-          continue;
-        }
-        const summaryJson = await summaryRes.json();
+    const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+    if (!summaryRes.ok) throw new Error('Summary failed');
+    const summaryJson = await summaryRes.json();
 
-        let fact = summaryJson.extract || summaryJson.description || 'An interesting fact from Wikipedia.';
-        fact = fact.trim();
-        if (!fact.endsWith('.')) fact += '.';
+    let fact = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting article.'}`;
+    fact = fact.trim();
+    if (!fact.endsWith('.')) fact += '.';
 
-        return res.json({ fact, source_url: summaryJson.content_urls?.desktop?.page, source_title: title });
-      }
-      attempts++;
-    }
-
-    return res.json({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' });
-
+    return res.json({
+      fact,
+      source_url: summaryJson.content_urls?.desktop?.page,
+      source_title: title
+    });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.json({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' });
   }
 }
