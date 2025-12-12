@@ -26,7 +26,6 @@ export default function App(): JSX.Element {
   const [bonusFact, setBonusFact] = useState<Fact | null>(null);
   const [loadingFact, setLoadingFact] = useState(false);
   const [loadingBonus, setLoadingBonus] = useState(false);
-  const [error, setError] = useState('');
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
@@ -35,9 +34,21 @@ export default function App(): JSX.Element {
 
   const today = getTodayString();
 
+  // Fixed subjects
+  const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science'];
+
+  // Deterministic daily subject using date as seed
+  const getDailySubject = () => {
+    const seed = new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate();
+    const index = Math.abs(Math.sin(seed) * 100000) % subjects.length;
+    return subjects[Math.floor(index)];
+  };
+
+  const currentSubject = getDailySubject();
+
   useEffect(() => {
-    fetchFact(setMainFact, setLoadingFact);
-  }, []);
+    fetchFact(setMainFact, setLoadingFact, currentSubject);
+  }, [currentSubject]);
 
   useEffect(() => {
     const savedQuizDate = localStorage.getItem('quizDate');
@@ -68,7 +79,7 @@ export default function App(): JSX.Element {
 
   const fetchBonusFact = async () => {
     setLoadingBonus(true);
-    await fetchFact(setBonusFact, () => setLoadingBonus(false));
+    await fetchFact(setBonusFact, () => setLoadingBonus(false), currentSubject);
     localStorage.setItem('bonusFactDate', today);
   };
 
@@ -80,7 +91,7 @@ export default function App(): JSX.Element {
 
     setLoadingQuiz(true);
     try {
-      const res = await fetch('/api/generateQuiz', { method: 'POST' });
+      const res = await fetch('/api/generateQuiz', { method: 'POST', body: JSON.stringify({ subject: currentSubject }) });
       if (!res.ok) throw new Error(await res.text());
       const q: Quiz = await res.json();
       setQuiz(q);
@@ -114,7 +125,7 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
-  const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void) => {
+  const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
     setLoadingFunc(true);
     let attempts = 0;
     const maxAttempts = 5;
@@ -136,7 +147,29 @@ export default function App(): JSX.Element {
         if (!summaryRes.ok) throw new Error('Summary fetch failed');
         const summaryJson = await summaryRes.json();
 
-        let factText = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting Wikipedia article.'}`;
+        // Filter by category keywords to ensure relevance to chosen subject
+        const categories = (summaryJson.categories || []).map((c: any) => c.title?.toLowerCase() || '');
+        const lowerTitle = title.toLowerCase();
+        const lowerExtract = (summaryJson.extract || '').toLowerCase();
+
+        const subjectKeywords = {
+          history: ['history', 'century', 'war', 'empire', 'dynasty', 'revolution'],
+          geography: ['geography', 'river', 'mountain', 'island', 'continent', 'country', 'city', 'region'],
+          anthropology: ['anthropology', 'culture', 'tribe', 'ethnography', 'ritual', 'kinship'],
+          sociology: ['sociology', 'society', 'social', 'class', 'inequality', 'urban'],
+          economics: ['economics', 'economy', 'trade', 'market', 'currency', 'gdp', 'inflation'],
+          'political science': ['politics', 'government', 'election', 'constitution', 'democracy', 'policy']
+        };
+
+        const keywords = subjectKeywords[subject as keyof typeof subjectKeywords] || [];
+        const matchesSubject = keywords.some(kw => lowerTitle.includes(kw) || lowerExtract.includes(kw) || categories.some((cat: string) => cat.includes(kw)));
+
+        if (!matchesSubject) {
+          attempts++;
+          continue;
+        }
+
+        let factText = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting article.'}`;
         factText = factText.trim();
         if (!factText.endsWith('.')) factText += '.';
 
@@ -176,7 +209,7 @@ export default function App(): JSX.Element {
 
       <main className="content">
         <section className="fact-card">
-          <h2>Today's Fact</h2>
+          <h2>Today's Fact ({currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)})</h2>
           {loadingFact && <p>Loading fact...</p>}
           {mainFact && (
             <div>
@@ -192,7 +225,7 @@ export default function App(): JSX.Element {
           {bonusFact && (
             <div className="bonus-fact-card">
               <div className="bonus-ribbon">BONUS UNLOCKED</div>
-              <h3>Bonus Fact</h3>
+              <h3>Bonus Fact ({currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)})</h3>
               {loadingBonus && <p>Loading bonus fact...</p>}
               <p className="fact-text bonus">{bonusFact.fact}</p>
               {bonusFact.source_url && (
@@ -203,7 +236,7 @@ export default function App(): JSX.Element {
         </section>
 
         <section className="quiz-area">
-          <h2>Daily Quiz</h2>
+          <h2>Daily Quiz ({currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)})</h2>
           {loadingQuiz && <p>Generating quiz...</p>}
           {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && <p>Click "Daily Quiz" to start today's challenge.</p>}
           {quiz && (
