@@ -2,24 +2,29 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
+    // Same deterministic daily subject logic as frontend
     const now = new Date();
     const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-    const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science'];
+    const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science', 'sports'];
     const subjectIndex = Math.floor((Math.sin(seed) * 10000) % subjects.length);
     const subject = subjects[subjectIndex];
 
+    // Map subjects to closest OpenTDB categories
     const categoryMap = {
-      history: 23,
-      geography: 22,
-      anthropology: 17, // Science & Nature (best proxy)
-      sociology: 24,    // Politics (best proxy)
-      economics: 24,    // Politics (best proxy)
-      'political science': 24
+      history: 23,               // History
+      geography: 22,             // Geography
+      anthropology: 17,          // Science & Nature (proxy)
+      sociology: 24,             // Politics (proxy)
+      economics: 24,             // Politics (proxy)
+      'political science': 24,   // Politics
+      sports: 21                 // Sports
     };
 
-    const category = categoryMap[subject] || 23;
+    const category = categoryMap[subject] || 23; // fallback to History
 
-    const resp = await fetch(`https://opentdb.com/api.php?amount=10&category=${category}&difficulty=hard&type=multiple`);
+    const resp = await fetch(
+      `https://opentdb.com/api.php?amount=10&category=${category}&difficulty=hard&type=multiple`
+    );
 
     if (!resp.ok) throw new Error('Trivia API failed');
     const j = await resp.json();
@@ -37,7 +42,6 @@ export default async function handler(req, res) {
     });
 
     return res.json({ questions });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Internal server error' });

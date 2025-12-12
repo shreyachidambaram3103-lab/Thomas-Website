@@ -34,8 +34,8 @@ export default function App(): JSX.Element {
 
   const today = getTodayString();
 
-  // Fixed subjects
-  const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science'];
+  // Subjects including Sports
+  const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science', 'sports'];
 
   // Deterministic daily subject using date as seed
   const getDailySubject = () => {
@@ -128,43 +128,33 @@ export default function App(): JSX.Element {
   const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
     setLoadingFunc(true);
     let attempts = 0;
-    const maxAttempts = 10; // Increased attempts since filtering is strict
+    const maxAttempts = 5;
     const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
 
     while (attempts < maxAttempts) {
       try {
-        const titleRes = await fetch('https://en.wikipedia.org/api/rest_v1/page/random/summary');
-        if (!titleRes.ok) throw new Error('Summary fetch failed');
-        const summaryJson = await titleRes.json();
+        const categoryTitle = `Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}`;
+        const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=page&cmnamespace=0&cmtitle=${encodeURIComponent(categoryTitle)}&cmlimit=50&format=json`;
 
-        const title = summaryJson.title;
+        const membersRes = await fetch(apiUrl);
+        if (!membersRes.ok) throw new Error('Category members fetch failed');
+        const membersJson = await membersRes.json();
+        const members = membersJson.query?.categorymembers || [];
+
+        if (members.length === 0) throw new Error('No articles in category');
+
+        const randomIndex = Math.floor(Math.random() * members.length);
+        const selectedPage = members[randomIndex];
+        const title = selectedPage.title;
 
         if (factHistory.has(title)) {
           attempts++;
           continue;
         }
 
-        // Keyword matching for subject relevance
-        const lowerTitle = title.toLowerCase();
-        const lowerExtract = (summaryJson.extract || '').toLowerCase();
-        const lowerDescription = (summaryJson.description || '').toLowerCase();
-
-        const subjectKeywords: Record<string, string[]> = {
-          history: ['history', 'century', 'war', 'empire', 'dynasty', 'revolution', 'bc', 'ad', 'ancient', 'medieval'],
-          geography: ['geography', 'river', 'mountain', 'island', 'continent', 'country', 'city', 'region', 'lake', 'ocean'],
-          anthropology: ['anthropology', 'culture', 'tribe', 'ethnography', 'ritual', 'kinship', 'human evolution'],
-          sociology: ['sociology', 'society', 'social', 'class', 'inequality', 'urban', 'community', 'norms'],
-          economics: ['economics', 'economy', 'trade', 'market', 'currency', 'gdp', 'inflation', 'finance'],
-          'political science': ['politics', 'government', 'election', 'constitution', 'democracy', 'policy', 'state', 'ideology']
-        };
-
-        const keywords = subjectKeywords[subject] || [];
-        const matchesSubject = keywords.some(kw => lowerTitle.includes(kw) || lowerExtract.includes(kw) || lowerDescription.includes(kw));
-
-        if (!matchesSubject) {
-          attempts++;
-          continue;
-        }
+        const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+        if (!summaryRes.ok) throw new Error('Summary fetch failed');
+        const summaryJson = await summaryRes.json();
 
         let factText = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting article.'}`;
         factText = factText.trim();
@@ -183,11 +173,10 @@ export default function App(): JSX.Element {
         return;
       } catch (e) {
         attempts++;
-        console.error('Wikipedia fetch attempt failed:', e);
+        console.error('Wikipedia category fetch attempt failed:', e);
       }
     }
 
-    // Fallback only after exhausting attempts
     const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
     setFactFunc(fallback);
     setLoadingFunc(false);
