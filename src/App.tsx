@@ -37,20 +37,7 @@ export default function App(): JSX.Element {
 
   // Load main fact on mount
   useEffect(() => {
-    (async () => {
-      setLoadingFact(true);
-      setError('');
-      try {
-        const res = await fetch('/api/generateFact', { method: 'POST' });
-        if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        setMainFact(json);
-      } catch (e) {
-        setError('Could not generate fact.');
-      } finally {
-        setLoadingFact(false);
-      }
-    })();
+    fetchFact(setMainFact, setLoadingFact, setError);
   }, []);
 
   // Load quiz if not taken today
@@ -73,8 +60,10 @@ export default function App(): JSX.Element {
       if (score > 8) {
         const bonusDate = localStorage.getItem('bonusFactDate');
         if (bonusDate !== today) {
+          // Auto-fetch bonus fact
           fetchBonusFact();
         } else {
+          // Load previously fetched bonus
           const saved = localStorage.getItem('bonusFact');
           if (saved) setBonusFact(JSON.parse(saved));
         }
@@ -92,7 +81,12 @@ export default function App(): JSX.Element {
       localStorage.setItem('bonusFact', JSON.stringify(json));
       localStorage.setItem('bonusFactDate', today);
     } catch (e) {
-      console.error('Bonus fact failed');
+      // Fallback on error for bonus too
+      const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
+      setBonusFact(fallback);
+      localStorage.setItem('bonusFact', JSON.stringify(fallback));
+      localStorage.setItem('bonusFactDate', today);
+      console.error('Bonus fact failed, using fallback');
     } finally {
       setLoadingBonus(false);
     }
@@ -140,12 +134,57 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
+  const fetchFact = async (setFactFunc, setLoadingFunc, setErrorFunc) => {
+    setLoadingFunc(true);
+    setErrorFunc('');
+    let attempts = 0;
+    const maxAttempts = 5; // Prevent infinite loop
+    let factJson;
+    const factHistory = JSON.parse(localStorage.getItem('factHistory') || '[]');
+
+    while (attempts < maxAttempts) {
+      try {
+        const res = await fetch('/api/generateFact', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        factJson = await res.json();
+
+        // Check if fact is already in history
+        if (factHistory.includes(factJson.fact)) {
+          attempts++;
+          continue; // Refetch
+        }
+
+        // Save to history
+        factHistory.push(factJson.fact);
+        localStorage.setItem('factHistory', JSON.stringify(factHistory));
+
+        setFactFunc(factJson);
+        break;
+      } catch (e) {
+        attempts++;
+        console.error('Fact fetch attempt failed:', e);
+      }
+    }
+    setLoadingFunc(false);
+
+    // Always fallback if no success after attempts
+    if (!factJson) {
+      const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
+      setFactFunc(fallback);
+      // Don't add fallback to history to avoid loops
+      console.warn('Using fallback fact due to API failure');
+    }
+  };
+
   return (
     <div className="page">
       <header className="header">
-        <h1 className="logo">Obscure Facts</h1>
+        <div className="logo-container">
+          <h1 className="logo">Thomas' Fact Machine</h1>
+          <p className="subtitle">For daily facts that only you would ever want to know</p>
+        </div>
         <button className="quiz-button" onClick={handleQuiz} disabled={loadingQuiz}>
-          {localStorage.getItem('quizDate') === today ? 'Quiz (Taken Today)' : 'New Quiz'}
+          {localStorage.getItem('quizDate') === today ? 'Quiz (Taken Today)' : 'Daily Quiz'}
         </button>
       </header>
 
@@ -181,7 +220,7 @@ export default function App(): JSX.Element {
         <section className="quiz-area">
           <h2>Daily Quiz</h2>
           {loadingQuiz && <p>Generating quiz...</p>}
-          {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && <p>Click "New Quiz" to start today's challenge.</p>}
+          {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && <p>Click "Daily Quiz" to start today's challenge.</p>}
           {quiz && (
             <>
               {showResult && (
