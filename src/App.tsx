@@ -34,19 +34,21 @@ export default function App(): JSX.Element {
 
   const today = getTodayString();
 
-  const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science', 'sports'];
-
-  const getDailySubject = () => {
-    const seed = new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate();
-    const index = Math.abs(Math.sin(seed) * 100000) % subjects.length;
-    return subjects[Math.floor(index)];
-  };
-
-  const currentSubject = getDailySubject();
-
   useEffect(() => {
-    fetchFact(setMainFact, setLoadingFact, currentSubject);
-  }, [currentSubject]);
+    (async () => {
+      setLoadingFact(true);
+      try {
+        const res = await fetch('/api/generateFact', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const json = await res.json();
+        setMainFact(json);
+      } catch (e) {
+        setMainFact({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' });
+      } finally {
+        setLoadingFact(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const savedQuizDate = localStorage.getItem('quizDate');
@@ -77,8 +79,18 @@ export default function App(): JSX.Element {
 
   const fetchBonusFact = async () => {
     setLoadingBonus(true);
-    await fetchFact(setBonusFact, () => setLoadingBonus(false), currentSubject);
-    localStorage.setItem('bonusFactDate', today);
+    try {
+      const res = await fetch('/api/generateFact', { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      setBonusFact(json);
+      localStorage.setItem('bonusFact', JSON.stringify(json));
+      localStorage.setItem('bonusFactDate', today);
+    } catch (e) {
+      setBonusFact({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' });
+    } finally {
+      setLoadingBonus(false);
+    }
   };
 
   const handleQuiz = async () => {
@@ -122,104 +134,6 @@ export default function App(): JSX.Element {
   };
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
-
-  // Recursive function to get all subcategories
-  const getSubcategories = async (category: string, depth = 0, maxDepth = 3): Promise<string[]> => {
-    if (depth > maxDepth) return [];
-    let subcats: string[] = [];
-    let continueToken = '';
-    do {
-      let url = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=subcat&cmprop=title&cmtitle=${encodeURIComponent(category)}&cmlimit=50&format=json`;
-      if (continueToken) url += `&cmcontinue=${continueToken}`;
-      const res = await fetch(url);
-      if (!res.ok) break;
-      const json = await res.json();
-      const cats = json.query?.categorymembers || [];
-      subcats = subcats.concat(cats.map((c: any) => c.title));
-      continueToken = json.continue?.cmcontinue || '';
-    } while (continueToken);
-    // Recurse into subcats
-    for (const subcat of subcats) {
-      subcats = subcats.concat(await getSubcategories(subcat, depth + 1, maxDepth));
-    }
-    return subcats;
-  };
-
-  // Get all articles from category and subcategories
-  const getAllArticles = async (category: string): Promise<any[]> => {
-    let allArticles: any[] = [];
-    let continueToken = '';
-    do {
-      let url = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtype=page&cmprop=title&cmnamespace=0&cmtitle=${encodeURIComponent(category)}&cmlimit=50&format=json`;
-      if (continueToken) url += `&cmcontinue=${continueToken}`;
-      const res = await fetch(url);
-      if (!res.ok) break;
-      const json = await res.json();
-      const articles = json.query?.categorymembers || [];
-      allArticles = allArticles.concat(articles);
-      continueToken = json.continue?.cmcontinue || '';
-    } while (continueToken);
-    return allArticles;
-  };
-
-  const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void, subject: string) => {
-    setLoadingFunc(true);
-    const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
-    let allArticles: any[] = [];
-
-    try {
-      const categoryTitle = `Category:${subject.charAt(0).toUpperCase() + subject.slice(1)}`;
-      const subcats = await getSubcategories(categoryTitle);
-      // Get articles from main category
-      let mainArticles = await getAllArticles(categoryTitle);
-      allArticles = allArticles.concat(mainArticles);
-      // Get articles from subcats (limit to top 10 subcats to avoid too many calls)
-      for (const subcat of subcats.slice(0, 10)) {
-        const subArticles = await getAllArticles(subcat);
-        allArticles = allArticles.concat(subArticles);
-        if (allArticles.length > 200) break; // Cap to prevent long loads
-      }
-
-      if (allArticles.length === 0) throw new Error('No articles found');
-
-      // Pick random unseen article
-      let selected;
-      let attempts = 0;
-      while (attempts < 20) { // High attempts since pool is large
-        const randomIndex = Math.floor(Math.random() * allArticles.length);
-        selected = allArticles[randomIndex];
-        if (!factHistory.has(selected.title)) break;
-        attempts++;
-      }
-
-      if (!selected || factHistory.has(selected.title)) throw new Error('All articles seen');
-
-      const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(selected.title)}`);
-      if (!summaryRes.ok) throw new Error('Summary fetch failed');
-      const summaryJson = await summaryRes.json();
-
-      let factText = summaryJson.extract || `${selected.title}: ${summaryJson.description || 'An interesting article.'}`;
-      factText = factText.trim();
-      if (!factText.endsWith('.')) factText += '.';
-
-      const factObj = {
-        fact: factText,
-        source_url: summaryJson.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(selected.title)}`,
-        source_title: selected.title
-      };
-
-      factHistory.add(selected.title);
-      localStorage.setItem('factHistory', JSON.stringify(Array.from(factHistory)));
-      setFactFunc(factObj);
-      setLoadingFunc(false);
-      return;
-    } catch (e) {
-      console.error('Fact generation failed:', e);
-      const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
-      setFactFunc(fallback);
-      setLoadingFunc(false);
-    }
-  };
 
   return (
     <div className="page">
