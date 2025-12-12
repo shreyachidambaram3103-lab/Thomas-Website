@@ -1,0 +1,22 @@
+{
+  "name": "obscure-facts-quiz",
+  "version": "1.0.6",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "vite": "5.2.0",
+    "typescript": "5.3.3",
+    "vitest": "1.4.4",
+    "@types/react": "18.2.21",
+    "@types/react-dom": "18.2.7"
+  }
+}
