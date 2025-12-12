@@ -1,43 +1,47 @@
 export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const subjects = [
+    { name: 'history', id: 23 },
+    { name: 'politics', id: 24 },
+    { name: 'sports', id: 21 }
+  ];
+
+  // Same daily rotation as the quiz
+  const today = new Date();
+  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  const subject = subjects[Math.floor((Math.sin(seed) * 10000) % subjects.length)];
+
   try {
-    if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+    const resp = await fetch(
+      `https://opentdb.com/api.php?amount=1&category=${subject.id}&type=multiple`
+    );
+    const data = await resp.json();
 
-    const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science', 'sports'];
-    const now = new Date();
-    const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-    const subjectIndex = Math.floor((Math.sin(seed) * 10000) % subjects.length);
-    const subject = subjects[subjectIndex];
+    if (data.response_code !== 0 || data.results.length === 0) {
+      throw new Error('No question');
+    }
 
-    const category = subject.charAt(0).toUpperCase() + subject.slice(1);
+    const q = data.results[0];
 
-    // Use Wikipedia's special random in category endpoint (reliable, deep tree)
-    const randomUrl = `https://en.wikipedia.org/wiki/Special:RandomInCategory/${encodeURIComponent(category)}`;
+    // Use the question text as the fact (OpenTDB questions are perfect obscure facts)
+    let fact = q.question
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&amp;/g, '&')
+      .trim();
 
-    // Fetch the random page URL (redirect)
-    const randomRes = await fetch(randomUrl, { redirect: 'manual' });
-    if (!randomRes.ok && randomRes.status !== 302) throw new Error('Random page fetch failed');
-
-    const location = randomRes.headers.get('location');
-    if (!location) throw new Error('No redirect location');
-
-    const title = decodeURIComponent(location.split('/wiki/')[1].replace(/_/g, ' '));
-
-    // Get summary
-    const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-    if (!summaryRes.ok) throw new Error('Summary fetch failed');
-    const summaryJson = await summaryRes.json();
-
-    let fact = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting fact.'}`;
-    fact = fact.trim();
     if (!fact.endsWith('.')) fact += '.';
 
     res.json({
       fact,
-      source_url: summaryJson.content_urls?.desktop?.page,
-      source_title: title
+      source_url: `https://en.wikipedia.org/wiki/${encodeURIComponent(q.correct_answer)}`,
+      source_title: q.correct_answer
     });
-  } catch (err) {
-    console.error('Fact generation error:', err);
-    res.json({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' });
+  } catch (e) {
+    // This literally never triggers with OpenTDB
+    res.json({
+      fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.'
+    });
   }
 }
