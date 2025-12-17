@@ -26,17 +26,34 @@ export default function App(): JSX.Element {
   const [bonusFact, setBonusFact] = useState<Fact | null>(null);
   const [loadingFact, setLoadingFact] = useState(false);
   const [loadingBonus, setLoadingBonus] = useState(false);
-  const [error, setError] = useState('');
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [userAnswers, setUserAnswers] = useState<number[]>([]);
   const [showResult, setShowResult] = useState(false);
 
+  const [showDifficultySelector, setShowDifficultySelector] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
+
   const today = getTodayString();
 
+  const subjects = ['history', 'geography', 'anthropology', 'sociology', 'economics', 'political science', 'sports'];
+  const getDailySubject = () => {
+    const seed = new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate();
+    const index = Math.abs(Math.sin(seed) * 100000) % subjects.length;
+    return subjects[Math.floor(index)];
+  };
+  const currentSubject = getDailySubject();
+
+  const topicDisplay = currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1).replace('science', ' Science');
+
   useEffect(() => {
-    fetchFact(setMainFact, setLoadingFact);
+    setLoadingFact(true);
+    fetch('/api/generateFact', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => setMainFact(data))
+      .catch(() => setMainFact({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' }))
+      .finally(() => setLoadingFact(false));
   }, []);
 
   useEffect(() => {
@@ -48,6 +65,8 @@ export default function App(): JSX.Element {
       if (savedAnswers) setUserAnswers(JSON.parse(savedAnswers));
       const savedResult = localStorage.getItem('quizResultShown');
       if (savedResult === 'true') setShowResult(true);
+      const savedDiff = localStorage.getItem('quizDifficulty');
+      if (savedDiff) setSelectedDifficulty(savedDiff as 'easy' | 'medium' | 'hard');
     }
   }, [today]);
 
@@ -68,19 +87,36 @@ export default function App(): JSX.Element {
 
   const fetchBonusFact = async () => {
     setLoadingBonus(true);
-    await fetchFact(setBonusFact, () => setLoadingBonus(false));
-    localStorage.setItem('bonusFactDate', today);
+    try {
+      const r = await fetch('/api/generateFact', { method: 'POST' });
+      const data = await r.json();
+      setBonusFact(data);
+      localStorage.setItem('bonusFact', JSON.stringify(data));
+      localStorage.setItem('bonusFactDate', today);
+    } catch {
+      setBonusFact({ fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' });
+    } finally {
+      setLoadingBonus(false);
+    }
   };
 
-  const handleQuiz = async () => {
+  const startQuiz = () => {
     if (localStorage.getItem('quizDate') === today) {
       alert('You have already taken today\'s quiz!');
       return;
     }
+    setShowDifficultySelector(true);
+  };
 
+  const selectDifficulty = async (difficulty: 'easy' | 'medium' | 'hard') => {
+    setSelectedDifficulty(difficulty);
+    localStorage.setItem('quizDifficulty', difficulty);
     setLoadingQuiz(true);
     try {
-      const res = await fetch('/api/generateQuiz', { method: 'POST' });
+      const res = await fetch('/api/generateQuiz', {
+        method: 'POST',
+        body: JSON.stringify({ difficulty })
+      });
       if (!res.ok) throw new Error(await res.text());
       const q: Quiz = await res.json();
       setQuiz(q);
@@ -114,54 +150,6 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
-  const fetchFact = async (setFactFunc: (f: Fact) => void, setLoadingFunc: (l: boolean) => void) => {
-    setLoadingFunc(true);
-    let attempts = 0;
-    const maxAttempts = 5;
-    const factHistory = new Set(JSON.parse(localStorage.getItem('factHistory') || '[]'));
-
-    while (attempts < maxAttempts) {
-      try {
-        const titleRes = await fetch('https://en.wikipedia.org/api/rest_v1/page/random/title');
-        if (!titleRes.ok) throw new Error('Title fetch failed');
-        const titleJson = await titleRes.json();
-        const title = titleJson.items[0].title;
-
-        if (factHistory.has(title)) {
-          attempts++;
-          continue;
-        }
-
-        const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-        if (!summaryRes.ok) throw new Error('Summary fetch failed');
-        const summaryJson = await summaryRes.json();
-
-        let factText = summaryJson.extract || `${title}: ${summaryJson.description || 'An interesting Wikipedia article.'}`;
-        factText = factText.trim();
-        if (!factText.endsWith('.')) factText += '.';
-
-        const factObj = {
-          fact: factText,
-          source_url: summaryJson.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
-          source_title: title
-        };
-
-        factHistory.add(title);
-        localStorage.setItem('factHistory', JSON.stringify(Array.from(factHistory)));
-        setFactFunc(factObj);
-        setLoadingFunc(false);
-        return;
-      } catch (e) {
-        attempts++;
-        console.error('Wikipedia fetch attempt failed:', e);
-      }
-    }
-
-    const fallback = { fact: 'The shortest war in history was between Britain and Zanzibar on August 27, 1896, lasting only 38 minutes.' };
-    setFactFunc(fallback);
-    setLoadingFunc(false);
-  };
-
   return (
     <div className="page">
       <header className="header">
@@ -169,8 +157,8 @@ export default function App(): JSX.Element {
           <h1 className="logo">Thomas' Fact Machine</h1>
           <p className="subtitle">For daily facts that only you would ever want to know</p>
         </div>
-        <button className="quiz-button" onClick={handleQuiz} disabled={loadingQuiz}>
-          {localStorage.getItem('quizDate') === today ? 'Quiz (Taken Today)' : 'Daily Quiz'}
+        <button className="quiz-button" onClick={startQuiz} disabled={loadingQuiz}>
+          Daily Quiz
         </button>
       </header>
 
@@ -182,7 +170,11 @@ export default function App(): JSX.Element {
             <div>
               <p className="fact-text">{mainFact.fact}</p>
               {mainFact.source_url ? (
-                <p className="source">Source: <a href={mainFact.source_url} target="_blank" rel="noopener noreferrer">{mainFact.source_title || mainFact.source_url}</a></p>
+                <p className="source">
+                  Source: <a href={mainFact.source_url} target="_blank" rel="noopener noreferrer">
+                    {mainFact.source_title || mainFact.source_url}
+                  </a>
+                </p>
               ) : (
                 <p className="source">No source available.</p>
               )}
@@ -196,7 +188,11 @@ export default function App(): JSX.Element {
               {loadingBonus && <p>Loading bonus fact...</p>}
               <p className="fact-text bonus">{bonusFact.fact}</p>
               {bonusFact.source_url && (
-                <p className="source bonus-source">Source: <a href={bonusFact.source_url} target="_blank" rel="noopener noreferrer">{bonusFact.source_title || bonusFact.source_url}</a></p>
+                <p className="source bonus-source">
+                  Source: <a href={bonusFact.source_url} target="_blank" rel="noopener noreferrer">
+                    {bonusFact.source_title || bonusFact.source_url}
+                  </a>
+                </p>
               )}
             </div>
           )}
@@ -204,14 +200,42 @@ export default function App(): JSX.Element {
 
         <section className="quiz-area">
           <h2>Daily Quiz</h2>
+
+          {showDifficultySelector && !quiz && !loadingQuiz && (
+            <>
+              <p style={{ marginBottom: '20px', fontSize: '18px', fontWeight: '600' }}>
+                Today's topic: <strong>{topicDisplay}</strong>
+              </p>
+              <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginBottom: '30px' }}>
+                <button className="quiz-button" onClick={() => selectDifficulty('easy')}>
+                  Easy (4/10)
+                </button>
+                <button className="quiz-button" onClick={() => selectDifficulty('medium')}>
+                  Medium (6/10)
+                </button>
+                <button className="quiz-button" onClick={() => selectDifficulty('hard')}>
+                  Hard (8/10)
+                </button>
+              </div>
+            </>
+          )}
+
           {loadingQuiz && <p>Generating quiz...</p>}
-          {!quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && <p>Click "Daily Quiz" to start today's challenge.</p>}
+
+          {!showDifficultySelector && !quiz && !loadingQuiz && localStorage.getItem('quizDate') !== today && (
+            <p>Click "Daily Quiz" to start today's challenge.</p>
+          )}
+
           {quiz && (
             <>
               {showResult && (
                 <div className="quiz-result">
                   <p>Your score: <strong>{score}/{quiz.questions.length}</strong></p>
-                  {score > 8 ? <p className="success">Excellent! You've unlocked a bonus fact.</p> : <p>Good try! Score 9 or higher tomorrow to unlock a bonus fact.</p>}
+                  {score > 8 ? (
+                    <p className="success">Excellent! You've unlocked a bonus fact.</p>
+                  ) : (
+                    <p>Good try! Score 9 or higher tomorrow to unlock a bonus fact.</p>
+                  )}
                 </div>
               )}
 
@@ -222,17 +246,19 @@ export default function App(): JSX.Element {
                     <ul className="choices">
                       {q.choices.map((c, j) => (
                         <li key={j}>
-                          <label className={
-                            showResult
-                              ? j === q.answer_index
-                                ? 'correct'
+                          <label
+                            className={
+                              showResult
+                                ? j === q.answer_index
+                                  ? 'correct'
+                                  : userAnswers[i] === j
+                                    ? 'incorrect'
+                                    : ''
                                 : userAnswers[i] === j
-                                  ? 'incorrect'
+                                  ? 'selected'
                                   : ''
-                              : userAnswers[i] === j
-                                ? 'selected'
-                                : ''
-                          }>
+                            }
+                          >
                             <input
                               type="radio"
                               name={`q${i}`}
