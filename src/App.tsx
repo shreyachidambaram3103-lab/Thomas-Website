@@ -33,8 +33,8 @@ export default function App(): JSX.Element {
   const [showResult, setShowResult] = useState(false);
 
   const [showDifficulty, setShowDifficulty] = useState(false);
-  const [activeGame, setActiveGame] = useState<'daily' | 'jeopardy' | 'timed' | null>(null);
-  const [activeSport, setActiveSport] = useState<'football' | 'f1' | 'cricket' | 'ufc'>('f1');
+  const [activeGame, setActiveGame] = useState<'jeopardy' | 'timed' | null>(null);
+  const [activeSport, setActiveSport] = useState<string | null>(null);
 
   const today = getTodayString();
 
@@ -53,7 +53,6 @@ export default function App(): JSX.Element {
       alert('You have already taken today\'s quiz!');
       return;
     }
-    setActiveGame('daily');
     setShowDifficulty(true);
   };
 
@@ -99,12 +98,20 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
-  // Sports data (F1 is real, others are realistic placeholders)
-  const sportsData = {
-    f1: "Latest F1: Max Verstappen wins again. Hamilton P3.",
-    football: "Premier League: Arsenal 2-1 Man City. Liverpool top the table.",
-    cricket: "India beat Australia by 6 wickets in 3rd ODI.",
-    ufc: "UFC 310: Topuria retains featherweight title via KO."
+  // Sports modal content
+  const getSportContent = (sport: string) => {
+    switch (sport) {
+      case 'f1':
+        return "Max Verstappen wins Saudi GP. Hamilton P4. Indian driver getting strong results in lower formulas.";
+      case 'football':
+        return "Indian Super League: Mohun Bagan leads. Premier League: Arsenal maintaining top position.";
+      case 'cricket':
+        return "IPL 2025: Auctions completed. RCB and CSK make big moves. India wins recent ODI series.";
+      case 'ufc':
+        return "UFC 310 highlights: Topuria retains title. Indian fighter making waves in lightweight division.";
+      default:
+        return "Latest updates loading...";
+    }
   };
 
   return (
@@ -132,14 +139,10 @@ export default function App(): JSX.Element {
         {/* LEFT SPORTS PANEL */}
         <div className="sidebar">
           <h3>Sports Live</h3>
-          <div className={`sport-option ${activeSport === 'f1' ? 'active' : ''}`} onClick={() => setActiveSport('f1')}>🏎️ F1</div>
-          <div className={`sport-option ${activeSport === 'football' ? 'active' : ''}`} onClick={() => setActiveSport('football')}>⚽ Football</div>
-          <div className={`sport-option ${activeSport === 'cricket' ? 'active' : ''}`} onClick={() => setActiveSport('cricket')}>🏏 Cricket</div>
-          <div className={`sport-option ${activeSport === 'ufc' ? 'active' : ''}`} onClick={() => setActiveSport('ufc')}>🥊 UFC</div>
-
-          <div className="sport-content">
-            <p>{sportsData[activeSport]}</p>
-          </div>
+          <div className="sport-option" onClick={() => setActiveSport('f1')}>🏎️ F1</div>
+          <div className="sport-option" onClick={() => setActiveSport('football')}>⚽ Football</div>
+          <div className="sport-option" onClick={() => setActiveSport('cricket')}>🏏 Cricket (India + IPL)</div>
+          <div className="sport-option" onClick={() => setActiveSport('ufc')}>🥊 UFC</div>
         </div>
 
         {/* MAIN CONTENT */}
@@ -167,58 +170,31 @@ export default function App(): JSX.Element {
 
             {!activeGame && (
               <div className="game-options">
-                <button className="game-btn" onClick={startDailyQuiz}>Daily Quiz</button>
                 <button className="game-btn" onClick={() => setActiveGame('jeopardy')}>Jeopardy</button>
                 <button className="game-btn" onClick={() => setActiveGame('timed')}>Timed Quizzes</button>
               </div>
             )}
 
-            {activeGame === 'daily' && showDifficulty && (
-              <div className="difficulty-buttons">
-                <button className="difficulty-btn" onClick={() => selectDifficulty('easy')}>Easy (4/10)</button>
-                <button className="difficulty-btn" onClick={() => selectDifficulty('medium')}>Medium (6/10)</button>
-                <button className="difficulty-btn" onClick={() => selectDifficulty('hard')}>Hard (8/10)</button>
-              </div>
-            )}
-
-            {loadingQuiz && <p>Generating quiz...</p>}
-
-            {quiz && (
-              <>
-                {showResult && (
-                  <div className="quiz-result">
-                    <p>Your score: <strong>{score}/{quiz.questions.length}</strong></p>
-                    {score > 8 ? <p className="success">Excellent! Bonus fact unlocked.</p> : <p>Good try!</p>}
-                  </div>
-                )}
-
-                <ol>
-                  {quiz.questions.map((q, i) => (
-                    <li key={i} className="quiz-q">
-                      <div className="q-text" dangerouslySetInnerHTML={{ __html: q.prompt }} />
-                      <ul className="choices">
-                        {q.choices.map((c, j) => (
-                          <li key={j}>
-                            <label className={showResult ? (j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : '') : userAnswers[i] === j ? 'selected' : ''}>
-                              <input type="radio" name={`q${i}`} checked={userAnswers[i] === j} onChange={() => selectAnswer(i, j)} disabled={showResult} />
-                              <span dangerouslySetInnerHTML={{ __html: c }} />
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ol>
-
-                {!showResult && <button className="submit-quiz" onClick={submitQuiz}>Submit Answers</button>}
-              </>
-            )}
-
-            {activeGame === 'jeopardy' && <p>Jeopardy Mode - Coming in next update</p>}
-            {activeGame === 'timed' && <p>Timed Quiz (Sporcle Style) - Coming in next update</p>}
+            {activeGame === 'jeopardy' && <p>Jeopardy Mode - Full implementation coming next</p>}
+            {activeGame === 'timed' && <p>Timed Quiz (Sporcle Style) - Full implementation coming next</p>}
           </section>
         </div>
       </div>
+
+      {/* SPORTS POP-UP MODAL */}
+      {activeSport && (
+        <div className="modal-overlay" onClick={() => setActiveSport(null)}>
+          <div className="modal-content" onClick={e => e.stopImmediatePropagation()}>
+            <div className="modal-header">
+              <h3>{activeSport.toUpperCase()} Updates</h3>
+              <button className="close-btn" onClick={() => setActiveSport(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p>{getSportContent(activeSport)}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="footer">Built for educational use.</footer>
     </div>
