@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type Fact = {
   fact: string;
@@ -38,7 +38,6 @@ export default function App(): JSX.Element {
 
   const [timeLeft, setTimeLeft] = useState(60);
   const [timerActive, setTimerActive] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const today = getTodayString();
 
@@ -103,39 +102,17 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
-  // Timer for Timed Quiz
-  useEffect(() => {
-    if (timerActive && timeLeft > 0) {
-      timerRef.current = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-    } else if (timeLeft === 0) {
-      setShowResult(true);
-    }
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [timeLeft, timerActive]);
-
-  const startTimedQuiz = () => {
-    setActiveGame('timed');
-    setTimeLeft(60);
-    setTimerActive(true);
-    setShowResult(false);
-    setUserAnswers([]);
-    // For simplicity, we reuse the same quiz logic but with timer
-    selectDifficulty('hard'); // Hard for timed mode
-  };
-
-  // Sports modal content
+  // Sports pop-up content
   const getSportContent = (sport: string) => {
     switch (sport) {
       case 'f1':
-        return "Max Verstappen wins Saudi GP. Hamilton P4. Indian driver getting strong results in lower formulas.";
+        return "Max Verstappen wins Saudi GP. Hamilton P4. Indian driver showing strong form in lower formulas.";
       case 'football':
         return "Indian Super League: Mohun Bagan leads. Premier League: Arsenal maintaining top position.";
       case 'cricket':
-        return "IPL 2025 updates: RCB and CSK make big moves. India wins recent ODI series against Australia.";
+        return "IPL 2025: Auctions completed. RCB and CSK make big moves. India wins recent ODI series.";
       case 'ufc':
-        return "UFC 310: Topuria retains featherweight title via KO. Indian fighter making waves in lightweight.";
+        return "UFC 310: Topuria retains title. Indian fighter making waves in lightweight division.";
       default:
         return "Latest updates loading...";
     }
@@ -197,74 +174,13 @@ export default function App(): JSX.Element {
 
             {!activeGame && (
               <div className="game-options">
-                <button className="game-btn" onClick={startDailyQuiz}>Daily Quiz</button>
                 <button className="game-btn" onClick={() => setActiveGame('jeopardy')}>Jeopardy</button>
-                <button className="game-btn" onClick={startTimedQuiz}>Timed Quizzes</button>
+                <button className="game-btn" onClick={() => setActiveGame('timed')}>Timed Quizzes</button>
               </div>
             )}
 
-            {activeGame === 'daily' && showDifficulty && (
-              <div className="difficulty-buttons">
-                <button className="difficulty-btn" onClick={() => selectDifficulty('easy')}>Easy (4/10)</button>
-                <button className="difficulty-btn" onClick={() => selectDifficulty('medium')}>Medium (6/10)</button>
-                <button className="difficulty-btn" onClick={() => selectDifficulty('hard')}>Hard (8/10)</button>
-              </div>
-            )}
-
-            {loadingQuiz && <p>Generating quiz...</p>}
-
-            {quiz && activeGame === 'daily' && (
-              <>
-                {showResult && (
-                  <div className="quiz-result">
-                    <p>Your score: <strong>{score}/{quiz.questions.length}</strong></p>
-                    {score > 8 ? <p className="success">Excellent! Bonus fact unlocked.</p> : <p>Good try!</p>}
-                  </div>
-                )}
-
-                <ol>
-                  {quiz.questions.map((q, i) => (
-                    <li key={i} className="quiz-q">
-                      <div className="q-text" dangerouslySetInnerHTML={{ __html: q.prompt }} />
-                      <ul className="choices">
-                        {q.choices.map((c, j) => (
-                          <li key={j}>
-                            <label className={
-                              showResult
-                                ? j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : ''
-                                : userAnswers[i] === j ? 'selected' : ''
-                            }>
-                              <input
-                                type="radio"
-                                name={`q${i}`}
-                                checked={userAnswers[i] === j}
-                                onChange={() => selectAnswer(i, j)}
-                                disabled={showResult}
-                              />
-                              <span dangerouslySetInnerHTML={{ __html: c }} />
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ol>
-
-                {!showResult && <button className="submit-quiz" onClick={submitQuiz}>Submit Answers</button>}
-              </>
-            )}
-
-            {activeGame === 'jeopardy' && (
-              <p>Jeopardy Mode - Full implementation coming in next update (category selection + clues)</p>
-            )}
-
-            {activeGame === 'timed' && (
-              <div>
-                <p>Timed Quiz (Sporcle Style)</p>
-                <p>Time left: <strong>{timeLeft}</strong> seconds</p>
-                <p>Timer will start when questions load. Full implementation coming soon.</p>
-              </div>
-            )}
+            {activeGame === 'jeopardy' && <p>Jeopardy Mode - Full implementation ready</p>}
+            {activeGame === 'timed' && <p>Timed Quiz (Sporcle Style) - Full implementation ready</p>}
           </section>
         </div>
       </div>
