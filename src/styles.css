@@ -80,3 +80,78 @@ body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Rob
   color:var(--text);
   text-decoration:underline;
 }
+
+.main-layout {
+  display: flex;
+  gap: 24px;
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sidebar {
+  width: 220px;
+  background: #111;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+}
+
+.sport-option {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #222;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.sport-option:hover {
+  background: #FF2800;
+  color: white;
+}
+
+.sidebar-note {
+  font-size: 13px;
+  color: #888;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.difficulty-buttons {
+  position: absolute;
+  top: 100%;
+  right: 24px;
+  background: #111;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+}
+
+.difficulty-btn {
+  background: #FF2800;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 180px;
+}
+
+.quiz-area {
+  flex: 1;
+  background: #111;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
