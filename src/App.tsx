@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 type Fact = {
   fact: string;
@@ -38,6 +38,7 @@ export default function App(): JSX.Element {
 
   const [timeLeft, setTimeLeft] = useState(60);
   const [timerActive, setTimerActive] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const today = getTodayString();
 
@@ -102,7 +103,30 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
-  // Sports pop-up content
+  // Timer for Timed Quiz
+  useEffect(() => {
+    if (timerActive && timeLeft > 0) {
+      timerRef.current = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+    } else if (timeLeft === 0 && timerActive) {
+      setShowResult(true);
+      setTimerActive(false);
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [timeLeft, timerActive]);
+
+  const startTimedQuiz = () => {
+    setActiveGame('timed');
+    setTimeLeft(60);
+    setTimerActive(true);
+    setShowResult(false);
+    setUserAnswers([]);
+    // For demo, we use the same quiz logic but with timer
+    selectDifficulty('hard');
+  };
+
+  // Sports modal content
   const getSportContent = (sport: string) => {
     switch (sport) {
       case 'f1':
@@ -179,8 +203,94 @@ export default function App(): JSX.Element {
               </div>
             )}
 
-            {activeGame === 'jeopardy' && <p>Jeopardy Mode - Full implementation ready</p>}
-            {activeGame === 'timed' && <p>Timed Quiz (Sporcle Style) - Full implementation ready</p>}
+            {activeGame === 'daily' && showDifficulty && (
+              <div className="difficulty-buttons">
+                <button className="difficulty-btn" onClick={() => selectDifficulty('easy')}>Easy (4/10)</button>
+                <button className="difficulty-btn" onClick={() => selectDifficulty('medium')}>Medium (6/10)</button>
+                <button className="difficulty-btn" onClick={() => selectDifficulty('hard')}>Hard (8/10)</button>
+              </div>
+            )}
+
+            {loadingQuiz && <p>Generating quiz...</p>}
+
+            {quiz && activeGame === 'daily' && (
+              <>
+                {showResult && (
+                  <div className="quiz-result">
+                    <p>Your score: <strong>{score}/{quiz.questions.length}</strong></p>
+                    {score > 8 ? <p className="success">Excellent! Bonus fact unlocked.</p> : <p>Good try!</p>}
+                  </div>
+                )}
+
+                <ol>
+                  {quiz.questions.map((q, i) => (
+                    <li key={i} className="quiz-q">
+                      <div className="q-text" dangerouslySetInnerHTML={{ __html: q.prompt }} />
+                      <ul className="choices">
+                        {q.choices.map((c, j) => (
+                          <li key={j}>
+                            <label className={
+                              showResult
+                                ? j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : ''
+                                : userAnswers[i] === j ? 'selected' : ''
+                            }>
+                              <input
+                                type="radio"
+                                name={`q${i}`}
+                                checked={userAnswers[i] === j}
+                                onChange={() => selectAnswer(i, j)}
+                                disabled={showResult}
+                              />
+                              <span dangerouslySetInnerHTML={{ __html: c }} />
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ol>
+
+                {!showResult && <button className="submit-quiz" onClick={submitQuiz}>Submit Answers</button>}
+              </>
+            )}
+
+            {activeGame === 'jeopardy' && (
+              <div>
+                <h3>Jeopardy Style</h3>
+                <p>Category: History</p>
+                <p>Clue: This Indian emperor built the Taj Mahal.</p>
+                <button onClick={() => alert("Answer: Shah Jahan")}>Reveal Answer</button>
+              </div>
+            )}
+
+            {activeGame === 'timed' && (
+              <div>
+                <h3>Timed Quiz (Sporcle Style)</h3>
+                <p>Time left: <strong>{timeLeft}</strong> seconds</p>
+                {quiz && (
+                  <>
+                    <ol>
+                      {quiz.questions.map((q, i) => (
+                        <li key={i} className="quiz-q">
+                          <div className="q-text" dangerouslySetInnerHTML={{ __html: q.prompt }} />
+                          <ul className="choices">
+                            {q.choices.map((c, j) => (
+                              <li key={j}>
+                                <label className={showResult ? (j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : '') : userAnswers[i] === j ? 'selected' : ''}>
+                                  <input type="radio" name={`q${i}`} checked={userAnswers[i] === j} onChange={() => selectAnswer(i, j)} disabled={showResult} />
+                                  <span dangerouslySetInnerHTML={{ __html: c }} />
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ol>
+                    {!showResult && <button className="submit-quiz" onClick={submitQuiz}>Submit Answers</button>}
+                  </>
+                )}
+              </div>
+            )}
           </section>
         </div>
       </div>
