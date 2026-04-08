@@ -223,8 +223,8 @@ export default function App(): JSX.Element {
               </>
             )}
 
-            {activeGame === 'jeopardy' && <p>Jeopardy Style Quiz - Coming Soon</p>}
-            {activeGame === 'sporcle' && <p>Sporcle Style Timed Quiz - Coming Soon</p>}
+            {activeGame === 'jeopardy' && <p>Jeopardy - Coming Soon</p>}
+            {activeGame === 'sporcle' && <p>Timed Quizzes - Coming Soon</p>}
           </section>
         </div>
       </div>
