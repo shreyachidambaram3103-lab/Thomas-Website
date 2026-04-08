@@ -32,11 +32,11 @@ export default function App(): JSX.Element {
   const [userAnswers, setUserAnswers] = useState<number[]>([]);
   const [showResult, setShowResult] = useState(false);
 
-  const [showPlayPanel, setShowPlayPanel] = useState(false);
-  const [showDifficultySelector, setShowDifficultySelector] = useState(false);
+  const [showDifficulty, setShowDifficulty] = useState(false);
 
   const today = getTodayString();
 
+  // Load main fact
   useEffect(() => {
     setLoadingFact(true);
     fetch('/api/generateFact', { method: 'POST' })
@@ -46,16 +46,23 @@ export default function App(): JSX.Element {
       .finally(() => setLoadingFact(false));
   }, []);
 
-  const startDailyQuiz = () => {
-    setShowPlayPanel(true);
-    setShowDifficultySelector(true);
+  const startQuiz = () => {
+    if (localStorage.getItem('quizDate') === today) {
+      alert('You have already taken today\'s quiz!');
+      return;
+    }
+    setShowDifficulty(true);
   };
 
   const selectDifficulty = async (level: 'easy' | 'medium' | 'hard') => {
+    setShowDifficulty(false);
     setLoadingQuiz(true);
-    setShowDifficultySelector(false);
     try {
-      const res = await fetch('/api/generateQuiz', { method: 'POST' });
+      const res = await fetch('/api/generateQuiz', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ difficulty: level })
+      });
       if (!res.ok) throw new Error();
       const q: Quiz = await res.json();
       setQuiz(q);
@@ -96,22 +103,30 @@ export default function App(): JSX.Element {
           <h1 className="logo">Thomas' Fact Machine</h1>
           <p className="subtitle">For daily facts that only you would ever want to know</p>
         </div>
-        <button className="quiz-button" onClick={startDailyQuiz}>
+
+        <button className="quiz-button" onClick={startQuiz}>
           Daily Quiz
         </button>
+
+        {/* Difficulty buttons appear below Daily Quiz */}
+        {showDifficulty && (
+          <div className="difficulty-buttons">
+            <button className="difficulty-btn" onClick={() => selectDifficulty('easy')}>Easy (4/10)</button>
+            <button className="difficulty-btn" onClick={() => selectDifficulty('medium')}>Medium (6/10)</button>
+            <button className="difficulty-btn" onClick={() => selectDifficulty('hard')}>Hard (8/10)</button>
+          </div>
+        )}
       </header>
 
       <div className="main-layout">
-        {/* LEFT SIDEBAR - Sports Panel */}
+        {/* LEFT SPORTS PANEL */}
         <div className="sidebar">
-          <h3>Sports Updates</h3>
-          <div className="sport-tab">Football</div>
-          <div className="sport-tab">F1</div>
-          <div className="sport-tab">Cricket</div>
-          <div className="sport-tab">UFC</div>
-          <p style={{ fontSize: '13px', color: '#999', marginTop: '20px' }}>
-            Latest scores and news will appear here (coming soon)
-          </p>
+          <h3>Sports Live</h3>
+          <div className="sport-option">🏈 Football</div>
+          <div className="sport-option">🏎️ F1</div>
+          <div className="sport-option">🏏 Cricket</div>
+          <div className="sport-option">🥊 UFC</div>
+          <p className="sidebar-note">Latest scores & news coming soon</p>
         </div>
 
         {/* MAIN CONTENT */}
@@ -134,33 +149,11 @@ export default function App(): JSX.Element {
           </section>
 
           {/* PLAY PANEL */}
-          <section className="quiz-area" style={{ minHeight: '500px' }}>
+          <section className="quiz-area">
             <h2>Play</h2>
 
-            {!showPlayPanel && (
-              <p>Click "Daily Quiz" to begin playing</p>
-            )}
-
-            {showPlayPanel && showDifficultySelector && (
-              <div>
-                <p style={{ fontSize: '18px', marginBottom: '20px' }}>
-                  Choose difficulty:
-                </p>
-                <button className="quiz-button" style={{ display: 'block', width: '100%', marginBottom: '12px' }} onClick={() => selectDifficulty('easy')}>
-                  Easy (4/10)
-                </button>
-                <button className="quiz-button" style={{ display: 'block', width: '100%', marginBottom: '12px' }} onClick={() => selectDifficulty('medium')}>
-                  Medium (6/10)
-                </button>
-                <button className="quiz-button" style={{ display: 'block', width: '100%' }} onClick={() => selectDifficulty('hard')}>
-                  Hard (8/10)
-                </button>
-              </div>
-            )}
-
-            {loadingQuiz && <p>Generating quiz...</p>}
-
-            {quiz && (
+            {quiz ? (
+              // Quiz is active
               <>
                 {showResult && (
                   <div className="quiz-result">
@@ -176,8 +169,18 @@ export default function App(): JSX.Element {
                       <ul className="choices">
                         {q.choices.map((c, j) => (
                           <li key={j}>
-                            <label className={showResult ? (j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : '') : userAnswers[i] === j ? 'selected' : ''}>
-                              <input type="radio" name={`q${i}`} checked={userAnswers[i] === j} onChange={() => selectAnswer(i, j)} disabled={showResult} />
+                            <label className={
+                              showResult
+                                ? j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : ''
+                                : userAnswers[i] === j ? 'selected' : ''
+                            }>
+                              <input
+                                type="radio"
+                                name={`q${i}`}
+                                checked={userAnswers[i] === j}
+                                onChange={() => selectAnswer(i, j)}
+                                disabled={showResult}
+                              />
                               <span dangerouslySetInnerHTML={{ __html: c }} />
                             </label>
                           </li>
@@ -189,6 +192,8 @@ export default function App(): JSX.Element {
 
                 {!showResult && <button className="submit-quiz" onClick={submitQuiz}>Submit Answers</button>}
               </>
+            ) : (
+              <p>Choose your difficulty above to start the Daily Quiz</p>
             )}
           </section>
         </div>
