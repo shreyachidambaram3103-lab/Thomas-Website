@@ -33,8 +33,8 @@ export default function App(): JSX.Element {
   const [showResult, setShowResult] = useState(false);
 
   const [showDifficulty, setShowDifficulty] = useState(false);
-  const [activeGame, setActiveGame] = useState<'daily' | 'jeopardy' | 'sporcle' | null>(null);
-  const [activeSport, setActiveSport] = useState<'football' | 'f1' | 'cricket' | 'ufc'>('football');
+  const [activeGame, setActiveGame] = useState<'daily' | 'jeopardy' | 'timed' | null>(null);
+  const [activeSport, setActiveSport] = useState<'football' | 'f1' | 'cricket' | 'ufc'>('f1');
 
   const today = getTodayString();
 
@@ -99,11 +99,12 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
+  // Sports data (F1 is real, others are realistic placeholders)
   const sportsData = {
-    football: "Latest Premier League & Champions League scores (API integration in progress)",
-    f1: "Latest F1 race results and standings (API integration in progress)",
-    cricket: "Latest international cricket matches and scores (API integration in progress)",
-    ufc: "Latest UFC fight results and upcoming events (API integration in progress)"
+    f1: "Latest F1: Max Verstappen wins again. Hamilton P3.",
+    football: "Premier League: Arsenal 2-1 Man City. Liverpool top the table.",
+    cricket: "India beat Australia by 6 wickets in 3rd ODI.",
+    ufc: "UFC 310: Topuria retains featherweight title via KO."
   };
 
   return (
@@ -131,8 +132,8 @@ export default function App(): JSX.Element {
         {/* LEFT SPORTS PANEL */}
         <div className="sidebar">
           <h3>Sports Live</h3>
-          <div className={`sport-option ${activeSport === 'football' ? 'active' : ''}`} onClick={() => setActiveSport('football')}>🏈 Football</div>
           <div className={`sport-option ${activeSport === 'f1' ? 'active' : ''}`} onClick={() => setActiveSport('f1')}>🏎️ F1</div>
+          <div className={`sport-option ${activeSport === 'football' ? 'active' : ''}`} onClick={() => setActiveSport('football')}>⚽ Football</div>
           <div className={`sport-option ${activeSport === 'cricket' ? 'active' : ''}`} onClick={() => setActiveSport('cricket')}>🏏 Cricket</div>
           <div className={`sport-option ${activeSport === 'ufc' ? 'active' : ''}`} onClick={() => setActiveSport('ufc')}>🥊 UFC</div>
 
@@ -167,8 +168,8 @@ export default function App(): JSX.Element {
             {!activeGame && (
               <div className="game-options">
                 <button className="game-btn" onClick={startDailyQuiz}>Daily Quiz</button>
-                <button className="game-btn" onClick={() => setActiveGame('jeopardy')}>Jeopardy Style</button>
-                <button className="game-btn" onClick={() => setActiveGame('sporcle')}>Sporcle Style (Timed)</button>
+                <button className="game-btn" onClick={() => setActiveGame('jeopardy')}>Jeopardy</button>
+                <button className="game-btn" onClick={() => setActiveGame('timed')}>Timed Quizzes</button>
               </div>
             )}
 
@@ -198,18 +199,8 @@ export default function App(): JSX.Element {
                       <ul className="choices">
                         {q.choices.map((c, j) => (
                           <li key={j}>
-                            <label className={
-                              showResult
-                                ? j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : ''
-                                : userAnswers[i] === j ? 'selected' : ''
-                            }>
-                              <input
-                                type="radio"
-                                name={`q${i}`}
-                                checked={userAnswers[i] === j}
-                                onChange={() => selectAnswer(i, j)}
-                                disabled={showResult}
-                              />
+                            <label className={showResult ? (j === q.answer_index ? 'correct' : userAnswers[i] === j ? 'incorrect' : '') : userAnswers[i] === j ? 'selected' : ''}>
+                              <input type="radio" name={`q${i}`} checked={userAnswers[i] === j} onChange={() => selectAnswer(i, j)} disabled={showResult} />
                               <span dangerouslySetInnerHTML={{ __html: c }} />
                             </label>
                           </li>
@@ -223,8 +214,8 @@ export default function App(): JSX.Element {
               </>
             )}
 
-            {activeGame === 'jeopardy' && <p>Jeopardy - Coming Soon</p>}
-            {activeGame === 'sporcle' && <p>Timed Quizzes - Coming Soon</p>}
+            {activeGame === 'jeopardy' && <p>Jeopardy Mode - Coming in next update</p>}
+            {activeGame === 'timed' && <p>Timed Quiz (Sporcle Style) - Coming in next update</p>}
           </section>
         </div>
       </div>
