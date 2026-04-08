@@ -33,6 +33,8 @@ export default function App(): JSX.Element {
   const [showResult, setShowResult] = useState(false);
 
   const [showDifficulty, setShowDifficulty] = useState(false);
+  const [activeGame, setActiveGame] = useState<'daily' | 'jeopardy' | 'sporcle' | null>(null);
+  const [activeSport, setActiveSport] = useState<'football' | 'f1' | 'cricket' | 'ufc'>('football');
 
   const today = getTodayString();
 
@@ -46,11 +48,12 @@ export default function App(): JSX.Element {
       .finally(() => setLoadingFact(false));
   }, []);
 
-  const startQuiz = () => {
+  const startDailyQuiz = () => {
     if (localStorage.getItem('quizDate') === today) {
       alert('You have already taken today\'s quiz!');
       return;
     }
+    setActiveGame('daily');
     setShowDifficulty(true);
   };
 
@@ -58,7 +61,7 @@ export default function App(): JSX.Element {
     setShowDifficulty(false);
     setLoadingQuiz(true);
     try {
-      const res = await fetch('/api/generateQuiz', { 
+      const res = await fetch('/api/generateQuiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ difficulty: level })
@@ -96,6 +99,13 @@ export default function App(): JSX.Element {
 
   const score = quiz ? quiz.questions.reduce((acc, q, i) => acc + (userAnswers[i] === q.answer_index ? 1 : 0), 0) : 0;
 
+  const sportsData = {
+    football: "Latest Premier League & Champions League scores (API integration in progress)",
+    f1: "Latest F1 race results and standings (API integration in progress)",
+    cricket: "Latest international cricket matches and scores (API integration in progress)",
+    ufc: "Latest UFC fight results and upcoming events (API integration in progress)"
+  };
+
   return (
     <div className="page">
       <header className="header">
@@ -104,11 +114,10 @@ export default function App(): JSX.Element {
           <p className="subtitle">For daily facts that only you would ever want to know</p>
         </div>
 
-        <button className="quiz-button" onClick={startQuiz}>
+        <button className="quiz-button" onClick={startDailyQuiz}>
           Daily Quiz
         </button>
 
-        {/* Difficulty buttons appear below Daily Quiz */}
         {showDifficulty && (
           <div className="difficulty-buttons">
             <button className="difficulty-btn" onClick={() => selectDifficulty('easy')}>Easy (4/10)</button>
@@ -122,11 +131,14 @@ export default function App(): JSX.Element {
         {/* LEFT SPORTS PANEL */}
         <div className="sidebar">
           <h3>Sports Live</h3>
-          <div className="sport-option">🏈 Football</div>
-          <div className="sport-option">🏎️ F1</div>
-          <div className="sport-option">🏏 Cricket</div>
-          <div className="sport-option">🥊 UFC</div>
-          <p className="sidebar-note">Latest scores & news coming soon</p>
+          <div className={`sport-option ${activeSport === 'football' ? 'active' : ''}`} onClick={() => setActiveSport('football')}>🏈 Football</div>
+          <div className={`sport-option ${activeSport === 'f1' ? 'active' : ''}`} onClick={() => setActiveSport('f1')}>🏎️ F1</div>
+          <div className={`sport-option ${activeSport === 'cricket' ? 'active' : ''}`} onClick={() => setActiveSport('cricket')}>🏏 Cricket</div>
+          <div className={`sport-option ${activeSport === 'ufc' ? 'active' : ''}`} onClick={() => setActiveSport('ufc')}>🥊 UFC</div>
+
+          <div className="sport-content">
+            <p>{sportsData[activeSport]}</p>
+          </div>
         </div>
 
         {/* MAIN CONTENT */}
@@ -152,8 +164,25 @@ export default function App(): JSX.Element {
           <section className="quiz-area">
             <h2>Play</h2>
 
-            {quiz ? (
-              // Quiz is active
+            {!activeGame && (
+              <div className="game-options">
+                <button className="game-btn" onClick={startDailyQuiz}>Daily Quiz</button>
+                <button className="game-btn" onClick={() => setActiveGame('jeopardy')}>Jeopardy Style</button>
+                <button className="game-btn" onClick={() => setActiveGame('sporcle')}>Sporcle Style (Timed)</button>
+              </div>
+            )}
+
+            {activeGame === 'daily' && showDifficulty && (
+              <div className="difficulty-buttons">
+                <button className="difficulty-btn" onClick={() => selectDifficulty('easy')}>Easy (4/10)</button>
+                <button className="difficulty-btn" onClick={() => selectDifficulty('medium')}>Medium (6/10)</button>
+                <button className="difficulty-btn" onClick={() => selectDifficulty('hard')}>Hard (8/10)</button>
+              </div>
+            )}
+
+            {loadingQuiz && <p>Generating quiz...</p>}
+
+            {quiz && (
               <>
                 {showResult && (
                   <div className="quiz-result">
@@ -192,9 +221,10 @@ export default function App(): JSX.Element {
 
                 {!showResult && <button className="submit-quiz" onClick={submitQuiz}>Submit Answers</button>}
               </>
-            ) : (
-              <p>Choose your difficulty above to start the Daily Quiz</p>
             )}
+
+            {activeGame === 'jeopardy' && <p>Jeopardy Style Quiz - Coming Soon</p>}
+            {activeGame === 'sporcle' && <p>Sporcle Style Timed Quiz - Coming Soon</p>}
           </section>
         </div>
       </div>
